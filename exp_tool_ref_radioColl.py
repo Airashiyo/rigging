@@ -23,23 +23,25 @@ def getExclKeywords():
 
 
 def getSelInfo():
-    isUnity = cmds.checkBox("unityCheck", query=True, value=True)
+    #isUnity = cmds.checkBox("unityCheck", query=True, value=True)
     useHierarchy = cmds.checkBox("hierarchyCheck", query=True, value=True)
     selection = cmds.ls(selection=True, type="joint", long=True)
     jntRescale = cmds.floatField("jntRescaleFloat", query=True, value=True)
     assignLayer = cmds.radioButton("existLayerButton", query=True, sl=True)
     createLayer = cmds.radioButton("newLayerButton", query=True, sl=True)
     dontLayer = cmds.radioButton("ignoreLayerButton", query=True, sl=True)
+    unrealChoice = cmds.radioButton("unrealButton", query=True, sl=True)
+    unityChoice = cmds.radioButton("unityButton", query=True, sl=True)
     
 
     #newSkelLayer = cmds.checkBox("newLayerCheck", query=True, value=True)
     #addSkelLayer = cmds.checkBox("existLayerCheck", query=True, value=True)
 
-    return isUnity, useHierarchy, selection, jntRescale, assignLayer, createLayer, dontLayer
+    return unrealChoice, unityChoice, useHierarchy, selection, jntRescale, assignLayer, createLayer, dontLayer
 
 
 
-def createExpSkel(wordExcl,isUnity,useHierarchy,selection,jntRescale, assignLayer, createLayer, dontLayer):
+def createExpSkel(wordExcl,unrealChoice, unityChoice, useHierarchy,selection,jntRescale, assignLayer, createLayer, dontLayer):
     selection = cmds.ls(selection=True, type="joint", long=True) # // variable to define our selection throughout
         # // Start of function for creating the export skeleton. Parameters are set // isUnity determines if the rig is meant for Unity, if it isn't, it defaults to Unreal Engine //
         # // useHierarchy determines whether to create the rig based on the hierarchy of the bones - if False, it defaults to user's selection. //
@@ -85,18 +87,20 @@ def createExpSkel(wordExcl,isUnity,useHierarchy,selection,jntRescale, assignLaye
         cmds.select(cl=1) # // clears the selection
         jnt_name = jnt.rsplit("|", 1)[-1] # // splits the selected strong from the right, into a list, and separates it by parent division. -1 makes it choose the last item on the list
         nJnt = cmds.joint(n="%s_EXP" % jnt_name) # // variable for creating a joint which inherits the first part of the name, adding _EXP
-        if isUnity: # // if isUnity is enabled, then
+        if unityChoice: # // if isUnity is enabled, then
             sJnt = cmds.joint(n="%s_sEXP" % jnt_name) # // variable for creating a joint which inherits the first part of the name, adding _sEXP (meaning scaleExport)
             newJoints.append(sJnt) # // adds sJnts into a list with the determined name
         cmds.matchTransform(nJnt, jnt, pos=1, rot=1) # // matches the position and rotation transformations of the newer joints to the previously selected joints
         cmds.makeIdentity(nJnt, apply=1) # // applies transforms to the selected item and all of its children down to shape level, apply=1 means the world space position is preserved and the shape doesnt move
         pc = cmds.parentConstraint(jnt, nJnt, mo=0)[0] # // creates a parent constraint between the original joint and the new joint, maintain offset is turned off
         newJoints.append(nJnt) # // adds nJnts into a list with the determined name
-        if isUnity: # // if the tool is used for exporting to unity
+
+        if unityChoice: # // if the tool is used for exporting to unity
             sc = cmds.scaleConstraint(jnt, sJnt, mo=0)[0] # // creates a scale constraint between the original joint and the new joint, maintain offset is turned off
             for new_made_jnt in [nJnt, sJnt]: # // for loop start that targets the newly made and scale joints
                 cmds.setAttr("%s.segmentScaleCompensate" % new_made_jnt, 0) # // disconnects the segmentscalecomp attribute
-        else: # // if it's not meant for unity
+                
+        if unrealChoice: # // if it's not meant for unity
             sc = cmds.scaleConstraint(jnt, nJnt, mo=0)[0] # // creates a scale constraint between the original joint and the new joint, maintain offset is turned off
             cmds.disconnectAttr("%s.parentInverseMatrix[0]" % nJnt, "%s.constraintParentInverseMatrix" % sc) # // disconnects the parentInvMatr attribute in the new joint, from the constraintParent attribute in the scale constraint
 
@@ -167,7 +171,20 @@ def uiWindow():
 
     cmds.separator(hr=True, style="single", h=10)
 
-    unityCheck = cmds.checkBox("unityCheck", l="Export for Unity? (Leave off for Unreal)", v=0)
+    cmds.frameLayout(label='Target Engine')
+    cmds.text(
+        label="This setting affects whether or not Segment Scale Compensation is disabled. If Unreal Engine is not your target, choose Other.",
+        ww=True)
+    cmds.columnLayout()
+    engineOptionCollection = cmds.radioCollection()
+    unrealButton = cmds.radioButton("unrealButton", label='Unreal Engine')
+    unityButton = cmds.radioButton("unityButton", label='Unity')
+    cmds.setParent( '..' )
+    cmds.setParent( '..' )
+    cmds.radioCollection(engineOptionCollection, edit=True, sl=unrealButton)
+
+
+    #unityCheck = cmds.checkBox("unityCheck", l="Export for Unity? (Leave off for Unreal)", v=0)
     hierarchyCheck = cmds.checkBox("hierarchyCheck", l="Use hierarchy? (Disable for own selection)", v=0)
 
     cmds.separator(hr=True, style="single", h=10)
@@ -209,10 +226,10 @@ def uiWindow():
 
 def buttonCommand(buttonval):
     wordExcl = getExclKeywords()
-    isUnity, useHierarchy, selection, jntRescale, assignLayer, createLayer, dontLayer = getSelInfo()
+    unrealChoice, unityChoice, useHierarchy, selection, jntRescale, assignLayer, createLayer, dontLayer = getSelInfo()
     
 
-    createExpSkel(wordExcl,isUnity,useHierarchy,selection,jntRescale, assignLayer, createLayer, dontLayer)
+    createExpSkel(wordExcl, unrealChoice, unityChoice, useHierarchy,selection,jntRescale, assignLayer, createLayer, dontLayer)
 
 if __name__ == "__main__":
     uiWindow()
