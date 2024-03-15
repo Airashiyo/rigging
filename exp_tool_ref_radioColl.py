@@ -113,8 +113,13 @@ def createExpSkel(wordExcl,isUnity,useHierarchy,selection,jntRescale, assignLaye
 
     if createLayer:
         insertLayerName = cmds.textField("layerName", query=True, text=True)
-        crtLayer = cmds.createDisplayLayer(n=insertLayerName)
-        cmds.editDisplayLayerMembers(crtLayer, newJoints)
+        if cmds.objExists(insertLayerName):
+            crtLayer = cmds.createDisplayLayer(n=insertLayerName)
+            cmds.editDisplayLayerMembers(crtLayer, newJoints)
+        else:
+            warningWindow = cmds.confirmDialog(
+                title="Warning!", message="No name provided, layer creation will be skipped!", 
+                messageAlign="center", button=['Continue'], defaultButton="Continue")
     if not createLayer:
         pass
 
@@ -123,7 +128,9 @@ def createExpSkel(wordExcl,isUnity,useHierarchy,selection,jntRescale, assignLaye
         if cmds.objExists(insertLayerName):  # // checks if this is in fact fr
             cmds.editDisplayLayerMembers(insertLayerName, newJoints) # // puts yo shit in yo layer
         else:
-            cmds.warning("Layer '{}' does not exist.".format(insertLayerName))
+            warningWindow = cmds.confirmDialog(
+                title="Warning!", message="No name provided, layer assignment will be skipped!", 
+                messageAlign="center", button=['Continue'], defaultButton="Continue")
     if not assignLayer:
         pass
 
@@ -159,6 +166,7 @@ def uiWindow():
     mainLayout = cmds.rowColumnLayout(numberOfColumns=1, columnWidth=[(1, 400)], rowSpacing=[(1, 10)])
 
     cmds.separator(hr=True, style="single", h=10)
+
     unityCheck = cmds.checkBox("unityCheck", l="Export for Unity? (Leave off for Unreal)", v=0)
     hierarchyCheck = cmds.checkBox("hierarchyCheck", l="Use hierarchy? (Disable for own selection)", v=0)
 
@@ -168,7 +176,7 @@ def uiWindow():
     cmds.columnLayout()
     layerOptionCollection = cmds.radioCollection()
     existLayerButton = cmds.radioButton("existLayerButton", label='Assign to Existing Layer')
-    newLayerButton = cmds.radioButton("newLayerButton", label='Create & Assign New Layer')
+    newLayerButton = cmds.radioButton("newLayerButton", label='Assign to New Layer')
     ignoreLayerButton = cmds.radioButton("ignoreLayerButton", label='Do Not Sort')
     cmds.setParent( '..' )
     cmds.setParent( '..' )
@@ -176,19 +184,23 @@ def uiWindow():
     layerName = cmds.textField("layerName", w=300, h=20, pht="Specify Layer Name")
 
     cmds.separator(hr=True, style="single", h=10)
-    cmds.text(label="Excluded Words:")
-    exclField = cmds.textField("excludeField", w=300, h=20, pht="Keywords will be separated by a comma [,]")
+
+    cmds.frameLayout(label="Excluded Words")
+    exclField = cmds.textField("excludeField", w=300, h=20, pht="Keywords will be separated with a comma [,]")
 
     cmds.separator(hr=True, style="single", h=10)
-    cmds.text(label="Joint Radius:")
+
+    cmds.frameLayout(label="Joint Radius")
     jntRescaleFloat = cmds.floatField("jntRescaleFloat", v=1)
 
     cmds.separator(hr=True, style="single", h=20)
+
     cmds.text(
         label="This tool will not work if you have joints with identical names! Please practice good naming habits.",
         bgc=[1, 0.761, 0.475], ww=True)
 
     cmds.separator(hr=True, style="single", h=20)
+
     cmds.button(l="Generate!", w=300, h=50, command=buttonCommand)
 
     cmds.showWindow(toolWindow)
@@ -204,4 +216,3 @@ def buttonCommand(buttonval):
 
 if __name__ == "__main__":
     uiWindow()
-    
