@@ -22,6 +22,7 @@ def getExclKeywords():
 
 
 
+
 def getSelInfo():
     #isUnity = cmds.checkBox("unityCheck", query=True, value=True)
     useHierarchy = cmds.checkBox("hierarchyCheck", query=True, value=True)
@@ -31,17 +32,60 @@ def getSelInfo():
     createLayer = cmds.radioButton("newLayerButton", query=True, sl=True)
     dontLayer = cmds.radioButton("ignoreLayerButton", query=True, sl=True)
     unrealChoice = cmds.radioButton("unrealButton", query=True, sl=True)
-    unityChoice = cmds.radioButton("unityButton", query=True, sl=True)
+    otherChoice = cmds.radioButton("otherButton", query=True, sl=True)
+    #nameLayer = cmds.textField("layerName", query=True, text=True)
     
 
     #newSkelLayer = cmds.checkBox("newLayerCheck", query=True, value=True)
     #addSkelLayer = cmds.checkBox("existLayerCheck", query=True, value=True)
 
-    return unrealChoice, unityChoice, useHierarchy, selection, jntRescale, assignLayer, createLayer, dontLayer
+    return unrealChoice, otherChoice, useHierarchy, selection, jntRescale, assignLayer, createLayer, dontLayer
+    
 
 
 
-def createExpSkel(wordExcl,unrealChoice, unityChoice, useHierarchy,selection,jntRescale, assignLayer, createLayer, dontLayer):
+
+
+
+def createLayerFunc(newJoints):
+    insertLayerName = cmds.textField("layerName", query=True, text=True)
+    if insertLayerName:
+        if not cmds.objExists(insertLayerName):
+            crtLayer = cmds.createDisplayLayer(n=insertLayerName)
+            cmds.editDisplayLayerMembers(crtLayer, newJoints)
+        else:
+            warningWindow = cmds.confirmDialog(
+                title="Warning!", message="A layer with this name already exists, joints will be assigned to that instead!", 
+                messageAlign="center", button=['Continue'], defaultButton="Continue")
+            assignLayer(newJoints)
+
+    else:
+        warningWindow = cmds.confirmDialog(
+            title="Warning!", message="No name provided, layer creation will be skipped!", 
+            messageAlign="center", button=['Continue'], defaultButton="Continue")
+
+
+
+
+def assignLayerFunc(newJoints):
+    insertLayerName = cmds.textField("layerName", query=True, text=True) # // gets the dumbass text box
+    if insertLayerName:
+        if cmds.objExists(insertLayerName):  # // checks if this is in fact fr
+            cmds.editDisplayLayerMembers(insertLayerName, newJoints) # // puts yo shit in yo layer
+        else:
+            warningWindow = cmds.confirmDialog(
+                title="Warning!", message="A layer with this name doesn't exist yet, it will be created!", 
+                messageAlign="center", button=['Continue'], defaultButton="Continue")
+            createLayer(newJoints)
+    else:
+        warningWindow = cmds.confirmDialog(
+            title="Warning!", message="No name provided, layer assignment will be skipped!", 
+            messageAlign="center", button=['Continue'], defaultButton="Continue")
+
+
+
+
+def createExpSkel(wordExcl,unrealChoice, otherChoice, useHierarchy,selection,jntRescale, assignLayer, createLayer, dontLayer):
     selection = cmds.ls(selection=True, type="joint", long=True) # // variable to define our selection throughout
         # // Start of function for creating the export skeleton. Parameters are set // isUnity determines if the rig is meant for Unity, if it isn't, it defaults to Unreal Engine //
         # // useHierarchy determines whether to create the rig based on the hierarchy of the bones - if False, it defaults to user's selection. //
@@ -87,7 +131,7 @@ def createExpSkel(wordExcl,unrealChoice, unityChoice, useHierarchy,selection,jnt
         cmds.select(cl=1) # // clears the selection
         jnt_name = jnt.rsplit("|", 1)[-1] # // splits the selected strong from the right, into a list, and separates it by parent division. -1 makes it choose the last item on the list
         nJnt = cmds.joint(n="%s_EXP" % jnt_name) # // variable for creating a joint which inherits the first part of the name, adding _EXP
-        if unityChoice: # // if isUnity is enabled, then
+        if otherChoice: # // if isUnity is enabled, then
             sJnt = cmds.joint(n="%s_sEXP" % jnt_name) # // variable for creating a joint which inherits the first part of the name, adding _sEXP (meaning scaleExport)
             newJoints.append(sJnt) # // adds sJnts into a list with the determined name
         cmds.matchTransform(nJnt, jnt, pos=1, rot=1) # // matches the position and rotation transformations of the newer joints to the previously selected joints
@@ -95,7 +139,7 @@ def createExpSkel(wordExcl,unrealChoice, unityChoice, useHierarchy,selection,jnt
         pc = cmds.parentConstraint(jnt, nJnt, mo=0)[0] # // creates a parent constraint between the original joint and the new joint, maintain offset is turned off
         newJoints.append(nJnt) # // adds nJnts into a list with the determined name
 
-        if unityChoice: # // if the tool is used for exporting to unity
+        if otherChoice: # // if the tool is used for exporting to unity
             sc = cmds.scaleConstraint(jnt, sJnt, mo=0)[0] # // creates a scale constraint between the original joint and the new joint, maintain offset is turned off
             for new_made_jnt in [nJnt, sJnt]: # // for loop start that targets the newly made and scale joints
                 cmds.setAttr("%s.segmentScaleCompensate" % new_made_jnt, 0) # // disconnects the segmentscalecomp attribute
@@ -116,27 +160,10 @@ def createExpSkel(wordExcl,unrealChoice, unityChoice, useHierarchy,selection,jnt
 
 
     if createLayer:
-        insertLayerName = cmds.textField("layerName", query=True, text=True)
-        if cmds.objExists(insertLayerName):
-            crtLayer = cmds.createDisplayLayer(n=insertLayerName)
-            cmds.editDisplayLayerMembers(crtLayer, newJoints)
-        else:
-            warningWindow = cmds.confirmDialog(
-                title="Warning!", message="No name provided, layer creation will be skipped!", 
-                messageAlign="center", button=['Continue'], defaultButton="Continue")
-    if not createLayer:
-        pass
+        createLayerFunc(newJoints)
 
     if assignLayer:
-        insertLayerName = cmds.textField("layerName", query=True, text=True) # // gets the dumbass text box
-        if cmds.objExists(insertLayerName):  # // checks if this is in fact fr
-            cmds.editDisplayLayerMembers(insertLayerName, newJoints) # // puts yo shit in yo layer
-        else:
-            warningWindow = cmds.confirmDialog(
-                title="Warning!", message="No name provided, layer assignment will be skipped!", 
-                messageAlign="center", button=['Continue'], defaultButton="Continue")
-    if not assignLayer:
-        pass
+        assignLayerFunc(newJoints)
 
     if dontLayer:
         pass
@@ -160,61 +187,66 @@ def createExpSkel(wordExcl,unrealChoice, unityChoice, useHierarchy,selection,jnt
 
     return "Baby!", len(newConstraints), "ConstraintsSet", "ExpJntSet"
 
+
+
+
 def uiWindow():
     if cmds.window("ExportJointCreatorWindow", exists=True):
         cmds.deleteUI("ExportJointCreatorWindow")
 
 
-    toolWindow = cmds.window("ExportJointCreatorWindow", t="Export Joint Generator", w=400, h=450)
+    toolWindow = cmds.window("ExportJointCreatorWindow", t="Export Joint Generator", w=450, h=450)
 
-    mainLayout = cmds.rowColumnLayout(numberOfColumns=1, columnWidth=[(1, 400)], rowSpacing=[(1, 10)])
-
-    cmds.separator(hr=True, style="single", h=10)
+    mainLayout = cmds.rowColumnLayout(numberOfColumns=1, columnWidth=[(1, 450)], rowSpacing=[(1, 10)])
 
     cmds.frameLayout(label='Target Engine')
+    testRowLayout = cmds.rowLayout( numberOfColumns=3, columnWidth3=(270, 10, 170), columnAlign=(1, 'center'), columnAttach=[(1, 'both', 0), (2, 'both', 0), (3, 'both', 0)])
+    
     cmds.text(
-        label="This setting affects whether or not Segment Scale Compensation is disabled. If Unreal Engine is not your target, choose Other.",
-        ww=True)
-    cmds.columnLayout()
-    engineOptionCollection = cmds.radioCollection()
+        label="This setting affects whether \"Segment Scale Compensation\" is disabled. If Unreal Engine is not your target, choose \"Other\".",
+        ww=True, parent=testRowLayout)
+    
+    cmds.separator(hr=False, style="single", h=50, parent=testRowLayout)
+    
+    collectionColumnLayout = cmds.columnLayout(parent=testRowLayout)
+    engineOptionCollection = cmds.radioCollection(parent=collectionColumnLayout)
     unrealButton = cmds.radioButton("unrealButton", label='Unreal Engine')
-    unityButton = cmds.radioButton("unityButton", label='Unity')
-    cmds.setParent( '..' )
-    cmds.setParent( '..' )
+    otherButton = cmds.radioButton("otherButton", label='Other')
     cmds.radioCollection(engineOptionCollection, edit=True, sl=unrealButton)
 
 
     #unityCheck = cmds.checkBox("unityCheck", l="Export for Unity? (Leave off for Unreal)", v=0)
-    hierarchyCheck = cmds.checkBox("hierarchyCheck", l="Use hierarchy? (Disable for own selection)", v=0)
+    
 
-    cmds.separator(hr=True, style="single", h=10)
+    cmds.separator(hr=True, style="single", h=10, p=mainLayout)
 
-    cmds.frameLayout(label='Layer Assignment')
-    cmds.columnLayout()
-    layerOptionCollection = cmds.radioCollection()
+    
+    testRowLayout2 = cmds.rowLayout( numberOfColumns=2, columnWidth2=(220, 220), columnAttach=[(1, 'both', 0), (2, 'both', 0)], p=mainLayout)
+    collectionColumnLayout2 = cmds.columnLayout(parent=testRowLayout2)
+    cmds.frameLayout(label='Layer Assignment', w=200, p=collectionColumnLayout2)
+    layerOptionCollection = cmds.radioCollection(p=collectionColumnLayout2)
     existLayerButton = cmds.radioButton("existLayerButton", label='Assign to Existing Layer')
     newLayerButton = cmds.radioButton("newLayerButton", label='Assign to New Layer')
     ignoreLayerButton = cmds.radioButton("ignoreLayerButton", label='Do Not Sort')
-    cmds.setParent( '..' )
-    cmds.setParent( '..' )
     cmds.radioCollection(layerOptionCollection, edit=True, sl=ignoreLayerButton)
-    layerName = cmds.textField("layerName", w=300, h=20, pht="Specify Layer Name")
 
-    cmds.separator(hr=True, style="single", h=10)
+    layerName = cmds.textField("layerName", w=200, h=20, pht="Specify Layer Name")
 
-    cmds.frameLayout(label="Excluded Words")
-    exclField = cmds.textField("excludeField", w=300, h=20, pht="Keywords will be separated with a comma [,]")
+    columnLayoutPatch = cmds.columnLayout(parent=testRowLayout2, adj=True)
+    cmds.frameLayout(label='Hierarchy', w=200, p=columnLayoutPatch)
+    hierarchyCheck = cmds.checkBox("hierarchyCheck", l="Use hierarchy?", v=0)
 
-    cmds.separator(hr=True, style="single", h=10)
+    cmds.separator(hr=True, style="single", h=12)
 
-    cmds.frameLayout(label="Joint Radius")
+    cmds.frameLayout(label="Joint Radius", w=200)
     jntRescaleFloat = cmds.floatField("jntRescaleFloat", v=1)
 
-    cmds.separator(hr=True, style="single", h=20)
+    
 
-    cmds.text(
-        label="This tool will not work if you have joints with identical names! Please practice good naming habits.",
-        bgc=[1, 0.761, 0.475], ww=True)
+    cmds.separator(hr=True, style="single", h=10, p=mainLayout)
+
+    cmds.frameLayout(label="Excluded Words", p=mainLayout)
+    exclField = cmds.textField("excludeField", w=300, h=20, pht="Keywords will be separated with a comma [,]")
 
     cmds.separator(hr=True, style="single", h=20)
 
@@ -222,14 +254,21 @@ def uiWindow():
 
     cmds.showWindow(toolWindow)
 
-    cmds.showWindow(toolWindow)
 
 def buttonCommand(buttonval):
-    wordExcl = getExclKeywords()
-    unrealChoice, unityChoice, useHierarchy, selection, jntRescale, assignLayer, createLayer, dontLayer = getSelInfo()
+    jntDuplicate = [jnt for jnt in cmds.ls(type="joint") if "|" in jnt]
+    if jntDuplicate:
+        warningWindow = cmds.confirmDialog(
+            title="Warning!", message="Joints with identical names found - this tool won't work with your dogshit names.", 
+            messageAlign="center", button=['Continue'], defaultButton="Continue")
+        return
     
+    
+    wordExcl = getExclKeywords()
+    unrealChoice, otherChoice, useHierarchy, selection, jntRescale, assignLayer, createLayer, dontLayer = getSelInfo()
+    
+    createExpSkel(wordExcl, unrealChoice, otherChoice, useHierarchy, selection, jntRescale, assignLayer, createLayer, dontLayer)
 
-    createExpSkel(wordExcl, unrealChoice, unityChoice, useHierarchy,selection,jntRescale, assignLayer, createLayer, dontLayer)
 
 if __name__ == "__main__":
     uiWindow()
