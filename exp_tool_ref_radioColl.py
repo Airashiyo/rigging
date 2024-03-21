@@ -54,10 +54,10 @@ def createLayerFunc(newJoints):
             crtLayer = cmds.createDisplayLayer(n=insertLayerName)
             cmds.editDisplayLayerMembers(crtLayer, newJoints)
         else:
-            warningWindow = cmds.confirmDialog(
-                title="Warning!", message="A layer with this name already exists, joints will be assigned to that instead!", 
+            attentionWindow = cmds.confirmDialog(
+                title="Attention!", message="A layer with this name already exists, joints will be assigned to that instead!", 
                 messageAlign="center", button=['Continue'], defaultButton="Continue")
-            assignLayer(newJoints)
+            assignLayerFunc(newJoints)
 
     else:
         warningWindow = cmds.confirmDialog(
@@ -73,10 +73,10 @@ def assignLayerFunc(newJoints):
         if cmds.objExists(insertLayerName):  # // checks if this is in fact fr
             cmds.editDisplayLayerMembers(insertLayerName, newJoints) # // puts yo shit in yo layer
         else:
-            warningWindow = cmds.confirmDialog(
-                title="Warning!", message="A layer with this name doesn't exist yet, it will be created!", 
+            attentionWindow = cmds.confirmDialog(
+                title="Attention!", message="A layer with this name doesn't exist yet, it will be created!", 
                 messageAlign="center", button=['Continue'], defaultButton="Continue")
-            createLayer(newJoints)
+            createLayerFunc(newJoints)
     else:
         warningWindow = cmds.confirmDialog(
             title="Warning!", message="No name provided, layer assignment will be skipped!", 
@@ -258,8 +258,8 @@ def uiWindow():
 def buttonCommand(buttonval):
     jntDuplicate = [jnt for jnt in cmds.ls(type="joint") if "|" in jnt]
     if jntDuplicate:
-        warningWindow = cmds.confirmDialog(
-            title="Warning!", message="Joints with identical names found - this tool won't work with your dogshit names.", 
+        errorWindow = cmds.confirmDialog(
+            title="Error!", message="Joints with identical names found - this tool won't work if joints with identical names exist.", 
             messageAlign="center", button=['Continue'], defaultButton="Continue")
         return
     
@@ -272,3 +272,6 @@ def buttonCommand(buttonval):
 
 if __name__ == "__main__":
     uiWindow()
+
+
+# note to self: don't forget to add bee movie script
