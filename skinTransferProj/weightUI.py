@@ -25,6 +25,9 @@ import time
 srcFieldList = []
 trgFieldList = []
 
+srcJntList = []
+trgJntList = []
+
 def jntNameSplit(*args):
     # Get the current selection in Maya
     sel = cmds.ls(selection=True)
@@ -86,19 +89,28 @@ def getMessageInfo():
     return stateMessage
 
 
-def createRowPanel():
+def deleteRowPanel(rowPanel):
+    cmds.deleteUI(rowPanel, layout=True)
+
+def createRowPanel(dummyArgument=None):
     rowPanel = cmds.rowLayout(width=330, numberOfColumns=5, columnWidth5=(25, 100, 25, 100, 25), columnAttach=[
         (1, 'left', 0), (2, 'left', 0), (3, 'left', 15), (4, 'left', 0), (5, 'left', 15)], parent="itemColumn")
 
+    # Insert button for source joint
+    cmds.button(label='>', w=25, h=25, parent=rowPanel, command=lambda x: insertSourceJoint(srcTextField))
+    # Source joint text field
     srcTextField = cmds.textField(placeholderText='source?', w=100, h=25, parent=rowPanel)
-    trgTextField = cmds.textField(placeholderText='target?', w=100, h=25, parent=rowPanel)
-
     srcFieldList.append(srcTextField)
+
+    # Insert button for target joint
+    cmds.button(label='>', w=25, h=25, parent=rowPanel, command=lambda x: insertTargetJoint(trgTextField))
+    # Target joint text field
+    trgTextField = cmds.textField(placeholderText='target?', w=100, h=25, parent=rowPanel)
     trgFieldList.append(trgTextField)
 
-    cmds.button(label='>', w=25, h=25, parent=rowPanel, command=lambda x, stf=srcTextField: insertSourceJoint(stf))
-    cmds.button(label='>', w=25, h=25, parent=rowPanel, command=lambda x, ttf=trgTextField: insertTargetJoint(ttf))
-    cmds.button(label='X', w=25, h=25, parent=rowPanel)
+    # Remove button
+    cmds.button(label='X', w=25, h=25, parent=rowPanel, command=lambda x: deleteRowPanel(rowPanel))
+
 
 
 # ===================== UI CREATION =========================
@@ -150,64 +162,55 @@ def uiWindow():
     # scrollLayout = cmds.scrollLayout(horizontalScrollBarThickness=16, verticalScrollBarThickness=16)
     # cmds.formLayout(picker, edit=True, attachForm=[(scrollLayout, 'top', 10), (scrollLayout, 'left', 20)])
 
+    # creating div_itemsTop separator, organising the UI
+    div_itemsTop = cmds.separator(hr=True, style="in", h=15, w=340)
+    cmds.formLayout(picker, edit=True,
+                    attachForm=[(div_itemsTop, 'top', 0)])
+
     text_sourceLabel = cmds.text(label="SOURCE:", font="boldLabelFont")
     cmds.formLayout(picker, edit=True,
-                    attachForm=[(text_sourceLabel, 'top', 3), (text_sourceLabel, 'left', 35)])
+                    attachForm=[(text_sourceLabel, 'top', 20), (text_sourceLabel, 'left', 42)])
 
     text_targetLabel = cmds.text(label="TARGET:", font="boldLabelFont")
     cmds.formLayout(picker, edit=True,
-                    attachForm=[(text_targetLabel, 'top', 3), (text_targetLabel, 'left', 175)])
+                    attachForm=[(text_targetLabel, 'top', 20), (text_targetLabel, 'left', 189)])
+
+    # Button to create new rowPanel
+    button_addRow = cmds.button(label="+", w=25, h=25, command=createRowPanel)
+    cmds.formLayout(picker, edit=True,
+                    attachForm=[(button_addRow, 'top', 13), (button_addRow, 'right', 16)])
+
+    # creating div_itemsTop separator, organising the UI
+    div_itemsBottom = cmds.separator(hr=True, style="in", h=15, w=340)
+    cmds.formLayout(picker, edit=True,
+                    attachForm=[(div_itemsBottom, 'top', 35)])
+
+    # creating div_itemsTop separator, organising the UI
+    div_functTop = cmds.separator(hr=True, style="in", h=15, w=340)
+    cmds.formLayout(picker, edit=True,
+                    attachForm=[(div_functTop, 'bottom', 45)])
+
+    # creating button_runRemap button, it runs function "remapCommand", which in turn runs all relevant functions.
+    button_runDynRemap = cmds.button(l="Remap", w=150, h=25, command=dynRemapCommand)
+    cmds.formLayout(picker, edit=True, attachForm=[(button_runDynRemap, 'bottom', 17), (button_runDynRemap, 'left', 95)])
+
+    # creating div_itemsTop separator, organising the UI
+    div_functBottom = cmds.separator(hr=True, style="in", h=15, w=340)
+    cmds.formLayout(picker, edit=True,
+                    attachForm=[(div_functBottom, 'bottom', 0)])
 
     # double-layer form to buffer space above the columns
-    itemsForm = cmds.formLayout(numberOfDivisions=100, w=340, h=400)
-    cmds.formLayout(picker, edit=True, attachForm=[(itemsForm, 'top', 45), (itemsForm, 'left', 0)])
+    itemsForm = cmds.formLayout(numberOfDivisions=100, w=340, h=320)
+    cmds.formLayout(picker, edit=True, attachForm=[(itemsForm, 'top', 50), (itemsForm, 'left', 0)])
+
+    scroll = cmds.scrollLayout(width=340, height=320, childResizable=True)
+    cmds.formLayout(itemsForm, edit=True, attachForm=[(scroll, 'top', 0), (scroll, 'left', 5)])
 
     # create column layout for stacking in the tab, nest it into the double-layer form
-    itemColumn = cmds.columnLayout('itemColumn', columnWidth=330, columnAttach=('both', 5), rowSpacing=5)
-    cmds.formLayout(itemsForm, edit=True, attachForm=[(itemColumn, 'top', 3), (itemColumn, 'left', 0)])
-
-    # input_sourceJoint = cmds.textField('input_sourceJoint', placeholderText='source?', w=100, h=25)
-    # input_targetJoint = cmds.textField('input_targetJoint', placeholderText='target?', w=100, h=25)
-
-    # debug amount for adding item rows
-    rowAmount = range(7)
-
-    for i in rowAmount:
-        rowPanel = cmds.rowLayout(width=330, numberOfColumns=5, columnWidth5=(25, 100, 25, 100, 25), columnAttach=[
-            (1, 'left', 0), (2, 'left', 0), (3, 'left', 15), (4, 'left', 0), (5, 'left', 15)], parent="itemColumn")
-
-        srcTextField = f'input_sourceJoint_{i}'
-        trgTextField = f'input_targetJoint_{i}'
-
-        # Create text fields and store their names
+    itemColumn = cmds.columnLayout('itemColumn', columnWidth=330, columnAttach=('both', 5), rowSpacing=5, parent=scroll)
 
 
-        cmds.button(label='>', w=25, h=25, parent=rowPanel,
-                    command=lambda x, stf=srcTextField: insertSourceJoint(stf))
-        srcFieldList.append(
-            cmds.textField(srcTextField, placeholderText='source?', w=100, h=25, parent=rowPanel))
-
-        cmds.button(label='>', w=25, h=25, parent=rowPanel,
-                    command=lambda x, ttf=trgTextField: insertTargetJoint(ttf))
-        trgFieldList.append(
-            cmds.textField(trgTextField, placeholderText='target?', w=100, h=25, parent=rowPanel))
-
-        cmds.button(label='X', w=25, h=25, parent=rowPanel)
-
-    # for bitch in rowAmount:
-    #
-    #     rowPanel = cmds.rowLayout(width=330, numberOfColumns=5, columnWidth5=(25, 100, 25, 100, 25), columnAttach=[
-    #         (1, 'left', 0), (2, 'left', 0), (3, 'left', 15), (4, 'left', 0), (5, 'left', 15)], parent=itemColumn)
-    #
-    #
-    #     cmds.button(label='>', w=25, h=25, parent=rowPanel, command=insertSourceJoint)
-    #     input_sourceJoint = cmds.textField('input_sourceJoint', placeholderText='source?', w=100, h=25, parent=rowPanel)
-    #
-    #     cmds.button(label='>', w=25, h=25, parent=rowPanel, command=insertTargetJoint)
-    #     input_targetJoint = cmds.textField('input_targetJoint',placeholderText='target?', w=100, h=25, parent=rowPanel)
-    #
-    #     cmds.button(label='X', w=25, h=25, parent=rowPanel)
-
+    createRowPanel()
 
     # fill debug tab
     cmds.setParent(debug)
@@ -236,10 +239,6 @@ def uiWindow():
     field_weightDictCheck = cmds.textField('field_weightDictCheck', placeholderText='N/A', w=50, h=25, editable=False)
     cmds.formLayout(debug, edit=True,
                     attachForm=[(field_weightDictCheck, 'top', 200), (field_weightDictCheck, 'right', 60)])
-
-
-
-
 
 
     # fill main utility tab
@@ -411,6 +410,7 @@ def insertSourceJoint(textField):
     jointName = jntNameSplit()
     if jointName:
         cmds.textField(textField, edit=True, text=jointName)
+        srcJntList.append(jointName)
     else:
         warningWindow = cmds.confirmDialog(
             title="Empty!", message="Selection was invalid! Please select a source joint.",
@@ -443,6 +443,7 @@ def insertTargetJoint(textField):
     jointName = jntNameSplit()
     if jointName:
         cmds.textField(textField, edit=True, text=jointName)
+        trgJntList.append(jointName)
     else:
         warningWindow = cmds.confirmDialog(
             title="Empty!", message="Selection was invalid! Please select a source joint.",
@@ -602,7 +603,14 @@ def remapCommand(*args):
     # Apply skin weights to target mesh
     applySkinWeightsToTarget(sourceMesh, targetMesh, skinWeightsDict)
 
+def dynRemapCommand(*args):
+    print("Source Joint Names:")
+    for jnt in srcJntList:
+        print(f"Joint Name: {jnt}")
 
+    print("Target Joint Names:")
+    for jnt in trgJntList:
+        print(f"Joint Name: {jnt}")
 
 # # Define the file path in the temp directory
 # file_path = os.path.join(tempfile.gettempdir(), "skin_weights.json")
