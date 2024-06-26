@@ -1,27 +1,52 @@
 import maya.cmds as cmds
+import time
+
+# import json
+# import os
+# import tempfile
 
 
-def insertFirstSelected(*args):
-    sel = cmds.selected()
-    if len(sel) > 0:
-        cmds.textField('input_sourceChain', edit=True, text=sel[0])
-    else:
-        cmds.warning("Nothing is selected.")
+# deprecated definition from testing phase - was used with a button command to insert selection into a text box.
+# def insertFirstSelected(*args):
+#     sel = cmds.selected()
+#     if len(sel) > 0:
+#         cmds.textField('input_sourceChain', edit=True, text=sel[0])
+#     else:
+#         cmds.warning("Nothing is selected.")
 
+
+
+
+
+# definition for determining type of selection, getting its parent list, splitting the chain to find desired joint.
+# if the item isn't a joint, it returns false as a failsafe.
+# used to insert "clean" joint names into a text box.
+
+srcFieldList = []
+trgFieldList = []
 
 def jntNameSplit(*args):
-    sel = cmds.ls(selection=True, type="joint", long=True)
-    chainParent = cmds.listRelatives(sel, parent=True, type="joint", fullPath=True)
-    jointName = chainParent[0].rsplit("|", 1)[-1]
-    for jnt in sel:
-        if not jointName or cmds.nodeType(chainParent[0]) != 'joint':
-            continue
+    # Get the current selection in Maya
+    sel = cmds.ls(selection=True)
 
-        if jointName:
-            return jointName
-    return False
+    if not sel:
+        cmds.warning("No joint selected. Please select a joint.")
+        return
+
+    # Ensure that the selection is a joint
+    if not cmds.objectType(sel[0], isType='joint'):
+        cmds.warning("Selected object is not a joint. Please select a joint.")
+        return
+
+    # Get the name of the selected joint
+    selJointName = sel[0]
+
+    return selJointName
 
 
+# definition for determining type of selection, getting its parent list, splitting the chain to find the desired shape.
+# if the transform isn't a mesh or a skin cluster, it returns false as a failsafe.
+# used to insert "clean" joint names into a text box.
 def skinNameSplit(*args):
     sel = cmds.ls(selection=True, long=True)
     meshParent = cmds.listRelatives(sel, shapes=True, fullPath=True)
@@ -37,21 +62,53 @@ def skinNameSplit(*args):
     return False
 
 
+# fetching UI functions
 def getInsertedInfo():
     sourceMesh = cmds.textField('input_sourceMesh', query=True, text=True)
     targetMesh = cmds.textField('input_targetMesh', query=True, text=True)
     sourceChain = cmds.textField('input_sourceChain', query=True, text=True)
     targetChain = cmds.textField('input_targetChain', query=True, text=True)
+    sourceJoint = cmds.textField('source_text_field', query=True, text=True)
+    targetJoint = cmds.textField('target_text_field', query=True, text=True)
 
-    return sourceMesh, targetMesh, sourceChain, targetChain
+
+    return sourceMesh, targetMesh, sourceChain, targetChain, sourceJoint, targetJoint
+
+# fetching debug UI functions
+def getDebugInfo():
+    weightDictCheck = cmds.textField('field_weightDictCheck', query=True, text=True)
+
+    return weightDictCheck
+
+def getMessageInfo():
+    stateMessage = cmds.text('text_jointsSection', query=True, label=True)
+
+    return stateMessage
 
 
+def createRowPanel():
+    rowPanel = cmds.rowLayout(width=330, numberOfColumns=5, columnWidth5=(25, 100, 25, 100, 25), columnAttach=[
+        (1, 'left', 0), (2, 'left', 0), (3, 'left', 15), (4, 'left', 0), (5, 'left', 15)], parent="itemColumn")
+
+    srcTextField = cmds.textField(placeholderText='source?', w=100, h=25, parent=rowPanel)
+    trgTextField = cmds.textField(placeholderText='target?', w=100, h=25, parent=rowPanel)
+
+    srcFieldList.append(srcTextField)
+    trgFieldList.append(trgTextField)
+
+    cmds.button(label='>', w=25, h=25, parent=rowPanel, command=lambda x, stf=srcTextField: insertSourceJoint(stf))
+    cmds.button(label='>', w=25, h=25, parent=rowPanel, command=lambda x, ttf=trgTextField: insertTargetJoint(ttf))
+    cmds.button(label='X', w=25, h=25, parent=rowPanel)
+
+
+# ===================== UI CREATION =========================
+# definition for tool window incoming lol
 def uiWindow():
     # kill window if it already exists
     if cmds.window("weightTransferUI", exists=True):
         cmds.deleteUI("weightTransferUI")
 
-    # build window
+    # build window bozo
     toolWindow = cmds.window("weightTransferUI", t="Skin Weight Transfer", w=350, h=450, sizeable=False,
                              minimizeButton=True, maximizeButton=True)
 
@@ -59,14 +116,21 @@ def uiWindow():
     # create tabLayout
     tabs = cmds.tabLayout(imw=5, imh=5)
 
+
     # create tabs
     form = cmds.formLayout(numberOfDivisions=100, w=340, h=400, parent=tabs)
     cmds.tabLayout(tabs, edit=True, tabLabel=(form, 'Retarget'))
     info = cmds.formLayout(numberOfDivisions=100, w=340, h=400, parent=tabs)
     cmds.tabLayout(tabs, edit=True, tabLabel=(info, 'Help'))
+    debug = cmds.formLayout(numberOfDivisions=100, w=340, h=400, parent=tabs)
+    cmds.tabLayout(tabs, edit=True, tabLabel=(debug, 'Debug'))
+    picker = cmds.formLayout(numberOfDivisions=100, w=340, h=400, parent=tabs)
+    cmds.tabLayout(tabs, edit=True, tabLabel=(picker, 'Compare'))
 
+    # fill info tab
     cmds.setParent(info)
 
+    # creating text to insert in scrField_infoText
     infoText = ('Skin Weights Transfer Tool \nVersion: 1.00 \nby Ketlin Riks. '
                 '\n\nThis tool saves the skin weights of each vertex, alters the information, and applies it to the target mesh. '
                 '\n\nUsed joints require keywords/prefixes. It is suggested to rename all joints in the desired chains with a prefix. Use said prefix in the inputs. '
@@ -74,12 +138,112 @@ def uiWindow():
                 '\n\n\nDISCLAIMERS:'
                 '\nThis tool relies on vertex ID matching, therefore it currently only works with identical source/target meshes and same-count joint chains.')
 
-    scrollField_infoText = cmds.scrollField(text=infoText, w=300, h=300, editable=False, wordWrap=True)
-    cmds.formLayout(info, edit=True, attachForm=[(scrollField_infoText, 'top', 10), (scrollField_infoText, 'left', 20)])
+    # creating scrollable text field scrField_infoText
+    scrField_infoText = cmds.scrollField(text=infoText, w=300, h=300, editable=False, wordWrap=True)
+    cmds.formLayout(info, edit=True, attachForm=[(scrField_infoText, 'top', 10), (scrField_infoText, 'left', 20)])
 
+
+
+    # fill picker tab
+    cmds.setParent(picker)
+
+    # scrollLayout = cmds.scrollLayout(horizontalScrollBarThickness=16, verticalScrollBarThickness=16)
+    # cmds.formLayout(picker, edit=True, attachForm=[(scrollLayout, 'top', 10), (scrollLayout, 'left', 20)])
+
+    text_sourceLabel = cmds.text(label="SOURCE:", font="boldLabelFont")
+    cmds.formLayout(picker, edit=True,
+                    attachForm=[(text_sourceLabel, 'top', 3), (text_sourceLabel, 'left', 35)])
+
+    text_targetLabel = cmds.text(label="TARGET:", font="boldLabelFont")
+    cmds.formLayout(picker, edit=True,
+                    attachForm=[(text_targetLabel, 'top', 3), (text_targetLabel, 'left', 175)])
+
+    # double-layer form to buffer space above the columns
+    itemsForm = cmds.formLayout(numberOfDivisions=100, w=340, h=400)
+    cmds.formLayout(picker, edit=True, attachForm=[(itemsForm, 'top', 45), (itemsForm, 'left', 0)])
+
+    # create column layout for stacking in the tab, nest it into the double-layer form
+    itemColumn = cmds.columnLayout('itemColumn', columnWidth=330, columnAttach=('both', 5), rowSpacing=5)
+    cmds.formLayout(itemsForm, edit=True, attachForm=[(itemColumn, 'top', 3), (itemColumn, 'left', 0)])
+
+    # input_sourceJoint = cmds.textField('input_sourceJoint', placeholderText='source?', w=100, h=25)
+    # input_targetJoint = cmds.textField('input_targetJoint', placeholderText='target?', w=100, h=25)
+
+    # debug amount for adding item rows
+    rowAmount = range(7)
+
+    for i in rowAmount:
+        rowPanel = cmds.rowLayout(width=330, numberOfColumns=5, columnWidth5=(25, 100, 25, 100, 25), columnAttach=[
+            (1, 'left', 0), (2, 'left', 0), (3, 'left', 15), (4, 'left', 0), (5, 'left', 15)], parent="itemColumn")
+
+        srcTextField = f'input_sourceJoint_{i}'
+        trgTextField = f'input_targetJoint_{i}'
+
+        # Create text fields and store their names
+
+
+        cmds.button(label='>', w=25, h=25, parent=rowPanel,
+                    command=lambda x, stf=srcTextField: insertSourceJoint(stf))
+        srcFieldList.append(
+            cmds.textField(srcTextField, placeholderText='source?', w=100, h=25, parent=rowPanel))
+
+        cmds.button(label='>', w=25, h=25, parent=rowPanel,
+                    command=lambda x, ttf=trgTextField: insertTargetJoint(ttf))
+        trgFieldList.append(
+            cmds.textField(trgTextField, placeholderText='target?', w=100, h=25, parent=rowPanel))
+
+        cmds.button(label='X', w=25, h=25, parent=rowPanel)
+
+    # for bitch in rowAmount:
+    #
+    #     rowPanel = cmds.rowLayout(width=330, numberOfColumns=5, columnWidth5=(25, 100, 25, 100, 25), columnAttach=[
+    #         (1, 'left', 0), (2, 'left', 0), (3, 'left', 15), (4, 'left', 0), (5, 'left', 15)], parent=itemColumn)
+    #
+    #
+    #     cmds.button(label='>', w=25, h=25, parent=rowPanel, command=insertSourceJoint)
+    #     input_sourceJoint = cmds.textField('input_sourceJoint', placeholderText='source?', w=100, h=25, parent=rowPanel)
+    #
+    #     cmds.button(label='>', w=25, h=25, parent=rowPanel, command=insertTargetJoint)
+    #     input_targetJoint = cmds.textField('input_targetJoint',placeholderText='target?', w=100, h=25, parent=rowPanel)
+    #
+    #     cmds.button(label='X', w=25, h=25, parent=rowPanel)
+
+
+    # fill debug tab
+    cmds.setParent(debug)
+
+    # creating text to insert in scrField_debug
+    debugText = ('DEBUG CHECKLIST'
+                 '\n\nCompilation of all checks that have been put in place as the functions run.'
+                 '\n\nIf successful, it will return "TRUE".'
+                 '\nIf failed, it will return "FALSE".'
+                 '\n\nThis can help diagnose issues with the tool.')
+
+    # creating scrollable field scrField_debug
+    scrField_debug = cmds.scrollField(text=debugText, w=300, h=180, editable=False, wordWrap=True)
+    cmds.formLayout(debug, edit=True, attachForm=[(scrField_debug, 'top', 10), (scrField_debug, 'left', 20)])
+
+
+
+
+    # ================ EXPERIMENTAL ================
+    # creating text_jointsSection text, clarifying focused object
+    text_weightDictCheck = cmds.text(label="Skin Dictionary Storage:", font="boldLabelFont")
+    cmds.formLayout(debug, edit=True,
+                    attachForm=[(text_weightDictCheck, 'top', 200), (text_weightDictCheck, 'left', 20)])
+    # ------------------------------------------------------
+    # creating text_jointsSection text, clarifying focused object
+    field_weightDictCheck = cmds.textField('field_weightDictCheck', placeholderText='N/A', w=50, h=25, editable=False)
+    cmds.formLayout(debug, edit=True,
+                    attachForm=[(field_weightDictCheck, 'top', 200), (field_weightDictCheck, 'right', 60)])
+
+
+
+
+
+
+    # fill main utility tab
     cmds.setParent(form)
-    # ===================== FUCK AROUND FIND OUT =========================
-    # random shit test
 
     # ====================== JOINTS ========================
     # ===================== DIVIDER ========================
@@ -165,15 +329,48 @@ def uiWindow():
     cmds.formLayout(form, edit=True, attachForm=[(input_targetMesh, 'top', 210), (input_targetMesh, 'left', 100)])
 
     # ======================= EXECUTE =========================
+    # creating button_runRemap button, it runs function "remapCommand", which in turn runs all relevant functions.
     button_runRemap = cmds.button(l="Remap", w=215, h=35, command=remapCommand)
-    cmds.formLayout(form, edit=True, attachForm=[(button_runRemap, 'bottom', 90), (button_runRemap, 'left', 65)])
+    cmds.formLayout(form, edit=True, attachForm=[(button_runRemap, 'bottom', 110), (button_runRemap, 'left', 60)])
+    # ------------------------------------------------------
+    # creating div_jointsTop separator, organising the UI
+    div_progressTop = cmds.separator(hr=True, style="in", h=15, w=230)
+    cmds.formLayout(form, edit=True,
+                    attachForm=[(div_progressTop, 'bottom', 90), (div_progressTop, 'left', 50)])
+    # ------------------------------------------------------
+    # creating text_jointsSection text, clarifying focused object
+    text_progressTitle = cmds.text(label="PROGRESS:", font="boldLabelFont")
+    cmds.formLayout(form, edit=True,
+                    attachForm=[(text_progressTitle, 'bottom', 80), (text_progressTitle, 'left', 140)])
+    # ------------------------------------------------------
+    # creating text_jointsSection text, clarifying focused object
+    item_progressBar = cmds.progressBar('item_progressBar', width=200)
+    # text_jointsSection = cmds.text('text_jointsSection', label="sample text")
+    cmds.formLayout(form, edit=True,
+                    attachForm=[(item_progressBar, 'bottom', 55), (item_progressBar, 'left', 65)])
+    # ------------------------------------------------------
+    # creating img_jointIcon image, visual indicator. aligned with text_jointsSection
+    # img_jointSourceIcon = cmds.image('img_jointSourceIcon', w=25, h=30, image='kinJoint.png')
+    # cmds.formLayout(form, edit=True, attachForm=[(img_jointSourceIcon, 'top', 13), (img_jointSourceIcon, 'right', 75)])
+    # ------------------------------------------------------
+    # creating div_jointsTop separator, organising the UI
+    div_progressBottom = cmds.separator(hr=True, style="out", h=15, w=230)
+    cmds.formLayout(form, edit=True,
+                    attachForm=[(div_progressBottom, 'bottom', 40), (div_progressBottom, 'left', 50)])
+    # ------------------------------------------------------
 
     # ======================================================
     # execute window
     cmds.showWindow(toolWindow)
 
 
+# ======================= EXTRA FUNCT =======================
 def getSkinnedMeshes():
+    """
+    function for finding skinned meshes. sorts through relatives. makes sure the found obj is a skin cluster
+    if the transform isn't a mesh or a skin cluster, it returns false as a failsafe.
+    used to insert "clean" skin cluster names into text box
+    """
     selected = cmds.ls(selection=True, long=True)
 
     for item in selected:
@@ -189,11 +386,31 @@ def getSkinnedMeshes():
 
 
 def insertSourceChain(*args):
+    """
+    function for finding the source chain name keys. makes sure the selection is a joint.
+    if the item isn't a joint or is empty, it returns as false (failsafe)
+    used to insert "clean" joint names into the text box.
+    """
     sel = cmds.ls(selection=True, type="joint", long=True)
-    # srcChainParent = cmds.listRelatives(sel, parent=True, type="joint", fullPath=True)
-    # srcJntName = srcChainParent[0].rsplit("|", 1)[-1]
+    jointName = jntNameSplit()
     if len(sel) > 0:
-        cmds.textField('input_sourceChain', edit=True, text=jntNameSplit())
+        cmds.textField('input_sourceChain', edit=True, text=jointName)
+    else:
+        warningWindow = cmds.confirmDialog(
+            title="Empty!", message="Selection was invalid! Please select a source joint.",
+            messageAlign="center", button=['Continue'], defaultButton="Continue")
+
+
+def insertSourceJoint(textField):
+    """
+    function for finding the source chain name keys. makes sure the selection is a joint.
+    if the item isn't a joint or is empty, it returns as false (failsafe)
+    used to insert "clean" joint names into the text box.
+    """
+    sel = cmds.ls(selection=True, type="joint", long=True)
+    jointName = jntNameSplit()
+    if jointName:
+        cmds.textField(textField, edit=True, text=jointName)
     else:
         warningWindow = cmds.confirmDialog(
             title="Empty!", message="Selection was invalid! Please select a source joint.",
@@ -201,17 +418,42 @@ def insertSourceChain(*args):
 
 
 def insertTargetChain(*args):
+    """
+    function for finding the target chain name keys. makes sure the selection is a joint.
+    if the item isn't a joint or is empty, it returns as false (failsafe)
+    used to insert "clean" joint names into the text box.
+    """
     sel = cmds.ls(selection=True, type="joint", long=True)
+    jointName = jntNameSplit()
     if len(sel) > 0:
-        cmds.textField('input_targetChain', edit=True, text=jntNameSplit())
+        cmds.textField('input_targetChain', edit=True, text=jointName)
     else:
         warningWindow = cmds.confirmDialog(
             title="Empty!", message="Selection was invalid! Please select a target joint.",
             messageAlign="center", button=['Continue'], defaultButton="Continue")
 
 
+def insertTargetJoint(textField):
+    """
+    function for finding the source chain name keys. makes sure the selection is a joint.
+    if the item isn't a joint or is empty, it returns as false (failsafe)
+    used to insert "clean" joint names into the text box.
+    """
+    sel = cmds.ls(selection=True, type="joint", long=True)
+    jointName = jntNameSplit()
+    if jointName:
+        cmds.textField(textField, edit=True, text=jointName)
+    else:
+        warningWindow = cmds.confirmDialog(
+            title="Empty!", message="Selection was invalid! Please select a source joint.",
+            messageAlign="center", button=['Continue'], defaultButton="Continue")
+
 def insertSourceSkin(*args):
-    sel = cmds.ls(selection=True, long=True)
+    """
+    function for finding the target skin cluster name. makes sure the selection is a skinned mesh.
+    if it's not a skinned mesh, it returns false (failsafe)
+    used to insert "clean" skin names into the text box.
+    """
     skinnedSourceMesh = getSkinnedMeshes()
     if skinnedSourceMesh:
         cmds.textField('input_sourceMesh', edit=True, text=skinNameSplit())
@@ -222,7 +464,11 @@ def insertSourceSkin(*args):
 
 
 def insertTargetSkin(*args):
-    sel = cmds.ls(selection=True, long=True)
+    """
+    function for finding the target skin cluster name. makes sure the selection is a skinned mesh.
+    if it's not a skinned mesh, it returns false (failsafe)
+    used to insert "clean" skin names into the text box.
+    """
     skinnedTargetMesh = getSkinnedMeshes()
     if skinnedTargetMesh:
         cmds.textField('input_targetMesh', edit=True, text=skinNameSplit())
@@ -230,6 +476,10 @@ def insertTargetSkin(*args):
         warningWindow = cmds.confirmDialog(
             title="Empty!", message="Selection was invalid! Please select a skinned target mesh.",
             messageAlign="center", button=['Continue'], defaultButton="Continue")
+
+
+taggedFunctions = []
+
 
 
 def storeRetargetWeights(sourceMesh, targetMesh, sourceChain, targetChain):
@@ -263,10 +513,14 @@ def storeRetargetWeights(sourceMesh, targetMesh, sourceChain, targetChain):
         return None
 
     # Get the influence list from the source chain
-    sourceInfluence = cmds.skinCluster(sourceSkin[0], query=True, inf=True)
+    # sourceInfluence = cmds.skinCluster(sourceSkin[0], query=True, inf=True) [OLD, BEFORE SOURCEJOINTS]
+    sourceJoints = (cmds.skinCluster(sourceSkin[0], query=True, inf=True))
+    sourceJoints_dict = []
+    for jnt in sourceJoints:
+        sourceJoints_dict.append(jnt)
 
     # Get the influence list from the target chain
-    targetInfluence = [targetChain + influence[len(sourceChain):] for influence in sourceInfluence]
+    targetInfluence = [targetChain + influence[len(sourceChain):] for influence in sourceJoints_dict]
 
     # Get vertex positions from the source mesh
     vertex_count = cmds.polyEvaluate(sourceMesh, vertex=True)
@@ -314,17 +568,68 @@ def applySkinWeightsToTarget(sourceMesh, targetMesh, skinWeightsDict):
             cmds.skinPercent(target_skin_cluster[0], target_vertex, transformValue=[(influence, weight)])
 
 
+def perItemApplication(sourceMesh, targetMesh, skinWeightsDict):
+
+    target_skin_cluster = cmds.ls(cmds.listHistory(targetMesh), type='skinCluster')
+
+    for vertex, weights in skinWeightsDict.items():
+        target_vertex = vertex.replace(sourceMesh, targetMesh)
+        for influence, weight in weights.items():
+            cmds.skinPercent(target_skin_cluster[0], target_vertex, transformValue=[(influence, weight)])
+
+
 def remapCommand(*args):
-    sourceMesh, targetMesh, sourceChain, targetChain = getInsertedInfo()
+    sourceMesh, targetMesh, sourceChain, targetChain, sourceJoint, targetJoint = getInsertedInfo()
+    weightDictCheck = getDebugInfo()
+    tasks = [storeRetargetWeights, applySkinWeightsToTarget]
+    countTasks = len(tasks)
+
+    cmds.progressBar('item_progressBar', edit=True, maxValue=countTasks, progress=0)
+
+    for i, task in enumerate(tasks):
+        cmds.progressBar('item_progressBar', edit=True, step=1)
 
     # Store skin weights:
     skinWeightsDict = storeRetargetWeights(sourceMesh, targetMesh, sourceChain, targetChain)
     if skinWeightsDict:
+        cmds.textField("field_weightDictCheck", edit=True, text="True", backgroundColor=[0.49, 0.702, 0.192])
         print("Skin weights stored successfully!")
         print(skinWeightsDict)
+    else:
+        cmds.textField("field_weightDictCheck", edit=True, text="False", backgroundColor=[0.788, 0.282, 0.341])
+
 
     # Apply skin weights to target mesh
     applySkinWeightsToTarget(sourceMesh, targetMesh, skinWeightsDict)
+
+
+
+# # Define the file path in the temp directory
+# file_path = os.path.join(tempfile.gettempdir(), "skin_weights.json")
+#
+# # Save the dictionary to a file
+# def save_skin_weights(skinWeightsDict, file_path):
+#     with open(file_path, "w") as f:
+#         json.dump(skinWeightsDict, f)
+#     print(f"Skin weights saved to: {file_path}")
+#
+#     # Save the skin weights dictionary to the file
+#     save_skin_weights(skinWeightsDict, file_path)
+#
+# # Delete the file when Maya is closed
+# def delete_skin_weights_file(file_path):
+#     if os.path.exists(file_path):
+#         os.remove(file_path)
+#         print(f"Deleted file: {file_path}")
+#
+# # Create a scriptJob to delete the file when Maya exits
+# cmds.scriptJob(event=["quitApplication", lambda: delete_skin_weights_file(file_path)])
+
+
+
+
+
+
 
 
 if __name__ == "__main__":

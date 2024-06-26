@@ -37,6 +37,8 @@ def storeRetargetWeights(sourceMesh, targetMesh, sourceChain, targetChain):
     # Get the influence list from the target chain
     targetInfluence = [targetChain + influence[len(sourceChain):] for influence in sourceInfluence]
 
+
+
     # Get vertex positions from the source mesh
     vertex_count = cmds.polyEvaluate(sourceMesh, vertex=True)
 
@@ -88,6 +90,8 @@ sourceMesh = "source_mesh_name"
 targetMesh = "target_mesh_name"
 sourceChain = "source_jnt_chain_name_segment"
 targetChain = "target_jnt_chain_name_segment"
+
+
 
 # Store skin weights:
 skinWeightsDict = storeRetargetWeights(sourceMesh, targetMesh, sourceChain, targetChain)
